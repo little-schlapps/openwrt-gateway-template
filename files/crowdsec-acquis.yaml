@@ -1,0 +1,7 @@
+# CrowdSec acquisition for OpenWrt: logd forwards the system log here
+# (system.@system[0].log_ip/log_port set by 50-security.sh).
+source: syslog
+listen_addr: 127.0.0.1
+listen_port: 4242
+labels:
+  type: syslog

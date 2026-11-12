@@ -1,0 +1,38 @@
+# /etc/hotplug.d/iface/90-iot-policy-route  (installed by 20-iot-segment.sh)
+# Keeps the IoT routing table's default route pointing at the egress WAN's
+# current DHCP gateway. Placeholders are filled in at install time.
+
+EGRESS_IF="@EGRESS_IF@"
+TABLE="@TABLE@"
+
+[ "$INTERFACE" = "$EGRESS_IF" ] || exit 0
+
+case "$ACTION" in
+ifup|ifupdate)
+	. /usr/share/libubox/jshn.sh
+	json_load "$(ubus call network.interface.$EGRESS_IF status)"
+	json_get_var dev l3_device
+	gw=""
+	if json_select route; then
+		idx=1
+		while json_is_a $idx object; do
+			json_select $idx
+			json_get_var target target
+			json_get_var mask mask
+			json_get_var nexthop nexthop
+			[ "$target" = "0.0.0.0" ] && [ "$mask" = "0" ] && gw="$nexthop"
+			json_select ..
+			idx=$((idx + 1))
+		done
+		json_select ..
+	fi
+	if [ -n "$gw" ] && [ -n "$dev" ]; then
+		ip route replace default via "$gw" dev "$dev" table "$TABLE"
+		logger -t iot-policy-route "table $TABLE: default via $gw dev $dev"
+	fi
+	;;
+ifdown)
+	ip route flush table "$TABLE" 2>/dev/null
+	logger -t iot-policy-route "table $TABLE flushed ($EGRESS_IF down)"
+	;;
+esac
